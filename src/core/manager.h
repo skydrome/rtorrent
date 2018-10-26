@@ -102,7 +102,6 @@ public:
   void                listen_open();
 
   std::string         bind_address() const;
-  void                set_bind_address(const std::string& addr);
 
   std::string         local_address() const;
   void                set_local_address(const std::string& addr);

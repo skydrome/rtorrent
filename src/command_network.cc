@@ -232,6 +232,7 @@ apply_xmlrpc_dialect(const std::string& arg) {
   return torrent::Object();
 }
 
+// TODO: Move.
 typedef std::function<void (const sockaddr*)> sockaddr_func;
 
 static void
@@ -255,18 +256,36 @@ convert_string_to_sockaddr(const std::string& addr, sockaddr_func lambda) {
 }
 
 static torrent::Object
+bind_address() {
+  // Find the most suitable address.
+  std::string address;
+
+  for (auto& itr : *torrent::bind()) {
+    // Do various checks on the flags.
+
+    return torrent::sa_addr_str(itr.address.get());
+  }
+
+  return address;
+}
+
+static torrent::Object
 bind_set_address(const torrent::Object::list_type& args) {
   if (args.size() != 1)
     throw torrent::input_error("Wrong argument count.");
 
-  auto args_itr = args.begin();
-  auto bind_address = args_itr->as_string();
-
-  torrent::bind()->clear();
-
-  convert_string_to_sockaddr(bind_address, [] (const sockaddr* sa) { torrent::bind()->add_bind(sa, 0); });
+  convert_string_to_sockaddr(args.front().as_string(), [] (const sockaddr* sa) {
+      torrent::bind()->clear();
+      torrent::bind()->add_bind("default", 0, sa, 0);
+      control->core()->http_stack()->set_bind_address(torrent::sa_addr_str(sa));
+    });
 
   return torrent::Object();
+}
+
+static torrent::Object
+bind_set_address_wrap(const std::string& args) {
+  return bind_set_address(torrent::Object::list_type{args});
 }
 
 static torrent::Object
@@ -287,6 +306,31 @@ bind_list() {
   }
 
   return result;
+}
+
+static torrent::Object
+bind_add(const torrent::Object::list_type& args) {
+  if (args.size() != 3 && args.size() != 4)
+    throw torrent::input_error("Wrong argument count.");
+
+  auto name = args[0].as_string();
+  auto address = args[2].as_string();
+  auto options = rpc::parse_option_flags(args.size() == 4 ? args[3].as_string() : "",
+                                         std::bind(&torrent::option_find_string_str, torrent::OPTION_BIND, std::placeholders::_1));
+
+  // TODO: Make helper methods for this.
+  rpc::command_base::value_type priority;
+
+  if (!rpc::parse_whole_value_nothrow(args[1].as_string().c_str(), &priority) ||
+      !(priority >= std::numeric_limits<uint16_t>::min() && priority <= std::numeric_limits<uint16_t>::max()))
+    throw torrent::input_error("Invalid priority argument.");
+
+  convert_string_to_sockaddr(address, [&] (const sockaddr* sa) {
+      torrent::bind()->add_bind(name, priority, sa, options);
+      control->core()->http_stack()->set_bind_address(torrent::sa_addr_str(sa));
+    });
+
+  return torrent::Object();
 }
 
 static torrent::Object
@@ -350,8 +394,8 @@ initialize_command_network() {
   CMD2_ANY_VALUE_V ("network.receive_buffer.size.set",    std::bind(&torrent::ConnectionManager::set_receive_buffer_size, cm, std::placeholders::_2));
   CMD2_ANY_STRING  ("network.tos.set",                    std::bind(&apply_tos, std::placeholders::_2));
 
-  CMD2_ANY         ("network.bind_address",          std::bind(&core::Manager::bind_address, control->core()));
-  CMD2_ANY_STRING_V("network.bind_address.set",      std::bind(&core::Manager::set_bind_address, control->core(), std::placeholders::_2));
+  CMD2_ANY         ("network.bind_address",          std::bind(&bind_address));
+  CMD2_ANY_STRING  ("network.bind_address.set",      std::bind(&bind_set_address_wrap, std::placeholders::_2));
   CMD2_ANY         ("network.local_address",         std::bind(&core::Manager::local_address, control->core()));
   CMD2_ANY_STRING_V("network.local_address.set",     std::bind(&core::Manager::set_local_address, control->core(), std::placeholders::_2));
   CMD2_ANY         ("network.proxy_address",         std::bind(&core::Manager::proxy_address, control->core()));
@@ -360,11 +404,8 @@ initialize_command_network() {
   CMD2_ANY_LIST    ("network.bind.set_address",      std::bind(&bind_set_address, std::placeholders::_2));
 
   CMD2_ANY         ("network.bind",                  std::bind(&bind_list));
+  CMD2_ANY_LIST    ("network.bind.add",              std::bind(&bind_add, std::placeholders::_2));
   CMD2_ANY_V       ("network.bind.clear",            std::bind(&torrent::bind_manager::clear, bm));
-
-  //CMD2_ANY_LIST    ("network.bind.add",              std::bind(&bind_add, std::placeholders::_2));
-
-  //CMD2_ANY_LIST    ("network.bind.ipv4.set",         std::bind(&torrent::BindManager::clear, bind));
 
   CMD2_ANY         ("network.block.accept",          std::bind(&torrent::bind_manager::is_block_accept, bm));
   CMD2_ANY_VALUE_V ("network.block.accept.set",      std::bind(&torrent::bind_manager::set_block_accept, bm, std::placeholders::_2));
