@@ -37,8 +37,8 @@
 #ifndef RTORRENT_SIGNAL_HANDLER_H
 #define RTORRENT_SIGNAL_HANDLER_H
 
+#include <functional>
 #include <signal.h>
-#include lt_tr1_functional
 
 class SignalHandler {
 public:

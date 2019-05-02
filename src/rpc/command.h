@@ -40,7 +40,6 @@
 #include <functional>
 #include <limits>
 #include <torrent/object.h>
-#include lt_tr1_functional
 
 #include <torrent/object.h>
 #include <torrent/data/file_list_iterator.h>
