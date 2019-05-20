@@ -308,7 +308,11 @@ bind_add(const torrent::Object::list_type& args) {
 
   int err = torrent::ai_each_inet_inet6_first(address, [&] (const sockaddr* sa) {
       torrent::bind()->add_bind(name, priority, sa, options);
-      control->core()->http_stack()->set_bind_address(torrent::sa_addr_str(sa));
+
+      if (torrent::sap_is_any(torrent::sa_convert(sa)))
+        control->core()->http_stack()->set_bind_address("");
+      else
+        control->core()->http_stack()->set_bind_address(torrent::sap_addr_str(torrent::sa_convert(sa)));
     });
 
   if (err != 0)
