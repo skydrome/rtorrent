@@ -282,6 +282,7 @@ bind_list() {
     entry.insert_back(rpc::parse_option_print_flags(itr.flags, std::bind(&torrent::option_to_string, torrent::OPTION_BIND, std::placeholders::_1, "invalid")));
     entry.insert_back(itr.listen_port_first);
     entry.insert_back(itr.listen_port_last);
+    entry.insert_back(itr.listen_socket_address_port());
 
     result.insert_back(entry);
   }
@@ -430,8 +431,8 @@ initialize_command_network() {
   CMD2_ANY         ("network.block.connect",         std::bind(&torrent::bind_manager::is_block_connect, bm));
   CMD2_ANY_VALUE_V ("network.block.connect.set",     std::bind(&torrent::bind_manager::set_block_connect, bm, std::placeholders::_2));
 
-  CMD2_ANY_V       ("network.listen.open",           std::bind(&torrent::bind_manager::listen_open, bm));
-  CMD2_ANY_V       ("network.listen.close",          std::bind(&torrent::bind_manager::listen_close, bm));
+  CMD2_ANY_V       ("network.listen.open",           std::bind(&torrent::bind_manager::listen_open_all, bm));
+  CMD2_ANY_V       ("network.listen.close",          std::bind(&torrent::bind_manager::listen_close_all, bm));
   CMD2_ANY         ("network.listen.is_open",        std::bind(&torrent::bind_manager::is_listen_open, bm));
   CMD2_ANY         ("network.listen.backlog",        std::bind(&torrent::bind_manager::listen_backlog, bm));
   CMD2_ANY_VALUE_V ("network.listen.backlog.set",    std::bind(&torrent::bind_manager::set_listen_backlog, bm, std::placeholders::_2));
