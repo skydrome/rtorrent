@@ -66,6 +66,7 @@
 #include "display/window.h"
 #include "display/manager.h"
 #include "input/bindings.h"
+#include "ui/root.h"
 
 #include "rpc/command_scheduler.h"
 #include "rpc/command_scheduler_item.h"
@@ -254,6 +255,9 @@ main(int argc, char** argv) {
       (rpc::make_target(),
        "method.insert = event.view.hide,multi|rlookup|static\n"
        "method.insert = event.view.show,multi|rlookup|static\n"
+
+       "method.insert = event.system.startup_done,multi|rlookup|static\n"
+       "method.insert = event.system.shutdown,multi|rlookup|static\n"
 
        "method.insert = event.download.inserted,multi|rlookup|static\n"
        "method.insert = event.download.inserted_new,multi|rlookup|static\n"
@@ -476,6 +480,7 @@ main(int argc, char** argv) {
     LT_LOG("seeded srandom and srand48 (seed:%u)", random_seed);
 
     control->initialize();
+    control->ui()->load_input_history();
 
     // Load session torrents and perform scheduled tasks to ensure
     // session torrents are loaded before arg torrents.
@@ -492,6 +497,8 @@ main(int argc, char** argv) {
     control->display()->receive_update();
 
     worker_thread->start_thread();
+
+    rpc::commands.call_catch("event.system.startup_done", rpc::make_target(), "startup_done", "System startup_done event action failed: ");
 
     torrent::thread_base::event_loop(torrent::main_thread());
 

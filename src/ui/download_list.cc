@@ -36,6 +36,8 @@
 
 #include "config.h"
 
+#include <sstream>
+
 #include <rak/functional.h>
 #include <rak/string_manip.h>
 #include <torrent/exceptions.h>
@@ -259,6 +261,25 @@ DownloadList::receive_view_input(Input type) {
     title = "command";
     break;
 
+  case INPUT_FILTER:
+    {
+      // Do not allow to subfilter the defined excluded views
+      const std::string excluded_views = rpc::call_command_string("view.filter.temp.excluded");
+      std::stringstream ss(excluded_views);
+      std::string view_name_var;
+
+      while(ss.good()) {
+          std::getline(ss, view_name_var, ',');
+          if (current_view()->name() == rak::trim(view_name_var)) {
+              control->core()->push_log_std("View '" + current_view()->name() + "' can't be filtered.");
+              return;
+          }
+      }
+
+      title = "filter";
+    }
+    break;
+
   default:
     throw torrent::internal_error("DownloadList::receive_view_input(...) Invalid input type.");
   }
@@ -274,20 +295,30 @@ DownloadList::receive_view_input(Input type) {
                                                       std::placeholders::_1,
                                                       std::placeholders::_2));
 
+  // reset ESC delay for input prompt
+  set_escdelay(0);
+
   input->bindings()['\n']      = std::bind(&DownloadList::receive_exit_input, this, type);
   input->bindings()[KEY_ENTER] = std::bind(&DownloadList::receive_exit_input, this, type);
-  input->bindings()['\x07']    = std::bind(&DownloadList::receive_exit_input, this, INPUT_NONE);
+  input->bindings()['\x07']    = std::bind(&DownloadList::receive_exit_input, this, INPUT_NONE); // ^G
+  input->bindings()['\x1B']    = std::bind(&DownloadList::receive_exit_input, this, INPUT_NONE); // ESC , ^[
 
-  control->ui()->enable_input(title, input);
+  control->ui()->enable_input(title, input, type);
 }
 
 void
 DownloadList::receive_exit_input(Input type) {
+  // set back ESC delay to default
+  set_escdelay(1000);
+
   input::TextInput* input = control->ui()->current_input();
   
   // We should check that this object is the one holding the input.
   if (input == NULL)
     return;
+
+  if (type != INPUT_NONE && type != INPUT_EOI)
+    control->ui()->add_to_input_history(type, input->str());
 
   control->ui()->disable_input();
 
@@ -322,6 +353,28 @@ DownloadList::receive_exit_input(Input type) {
                                 input->str());
       break;
 
+    case INPUT_FILTER:
+      if (input->str().empty()) {
+        if (rpc::call_command_value("view.filter.temp.log"))
+          control->core()->push_log_std("Clear temporary filter on '" + current_view()->name() + "' view.");
+        current_view()->set_filter_temp(torrent::Object());
+        current_view()->filter();
+        current_view()->sort();
+      } else {
+        std::string pattern = input->str();
+        if (pattern.back() != '$')
+          pattern = pattern + ".*";
+        if (pattern.front() != '^')
+          pattern = ".*" + pattern;
+        std::transform(pattern.begin(), pattern.end(), pattern.begin(), ::tolower);
+        std::string temp_filter = "match={d.name=," + pattern + "}";
+        if (rpc::call_command_value("view.filter.temp.log"))
+          control->core()->push_log_std("Temporary filter on '" + current_view()->name() + "' view: " + pattern);
+        current_view()->set_filter_temp(temp_filter);
+        current_view()->filter();
+      }
+      break;
+
     default:
       throw torrent::internal_error("DownloadList::receive_exit_input(...) Invalid input type.");
     }
@@ -343,6 +396,7 @@ DownloadList::setup_keys() {
   m_bindings[KEY_ENTER]     = std::bind(&DownloadList::receive_view_input, this, INPUT_LOAD_MODIFIED);
   m_bindings['\x0F']        = std::bind(&DownloadList::receive_view_input, this, INPUT_CHANGE_DIRECTORY);
   m_bindings['X' - '@']     = std::bind(&DownloadList::receive_view_input, this, INPUT_COMMAND);
+  m_bindings['F']           = std::bind(&DownloadList::receive_view_input, this, INPUT_FILTER);
 
   m_uiArray[DISPLAY_LOG]->bindings()[KEY_LEFT] =
     m_uiArray[DISPLAY_LOG]->bindings()['B' - '@'] =

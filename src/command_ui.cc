@@ -39,6 +39,8 @@
 #include <sys/types.h>
 
 #include <ctime>
+#include <regex>
+
 #include <rak/algorithm.h>
 #include <rak/functional.h>
 #include <rak/functional_fun.h>
@@ -317,6 +319,103 @@ torrent::Object apply_greater(rpc::target_type target, const torrent::Object::li
 torrent::Object apply_equal(rpc::target_type target, const torrent::Object::list_type& args) {
   torrent::Object result = apply_cmp(target, args);
   return result.is_value() ? result.as_value() == 0 : (int64_t)false;
+}
+
+torrent::Object
+apply_compare(rpc::target_type target, const torrent::Object::list_type& args) {
+  if (!rpc::is_target_pair(target))
+    throw torrent::input_error("Can only compare a target pair.");
+
+  if (args.size() < 2)
+    throw torrent::input_error("Need at least order and one field.");
+
+  torrent::Object::list_const_iterator itr = args.begin();
+  std::string order = (itr++)->as_string();
+  const char* current = order.c_str();
+
+  torrent::Object result1;
+  torrent::Object result2;
+
+  for (torrent::Object::list_const_iterator last = args.end(); itr != last; itr++) {
+    std::string field = itr->as_string();
+    result1 = rpc::parse_command_single(rpc::get_target_left(target), field);
+    result2 = rpc::parse_command_single(rpc::get_target_right(target), field);
+
+    if (result1.type() != result2.type())
+      throw torrent::input_error(std::string("Type mismatch in compare of ") + field);
+
+    bool descending = *current == 'd' || *current == 'D' || *current == '-';
+    if (*current) {
+      if (!descending && !(*current == 'a' || *current == 'A' || *current == '+'))
+        throw torrent::input_error(std::string("Bad order '") + *current + "' in " + order);
+      ++current;
+    }
+
+    switch (result1.type()) {
+      case torrent::Object::TYPE_VALUE:
+        if (result1.as_value() != result2.as_value())
+          return (int64_t) (descending ^ (result1.as_value() < result2.as_value()));
+        break;
+
+      case torrent::Object::TYPE_STRING:
+        if (result1.as_string() != result2.as_string())
+          return (int64_t) (descending ^ (result1.as_string() < result2.as_string()));
+        break;
+
+      default:
+        break; // treat unknown types as equal
+    }
+  }
+
+  // if all else is equal, ensure stable sort order based on memory location
+  return (int64_t) (target.second < target.third);
+}
+
+// Regexp based 'match' function.
+// arg1: the text to match.
+// arg2: the regexp pattern.
+// eg: match{d.name=,.*linux.*iso}
+torrent::Object apply_match(rpc::target_type target, const torrent::Object::list_type& args) {
+  if (args.size() != 2)
+    throw torrent::input_error("Wrong argument count for 'match': 2 arguments needed.");
+
+  // This really should be converted to using args flagged as
+  // commands, so that we can compare commands and statics values.
+
+  torrent::Object result1;
+  torrent::Object result2;
+
+  rpc::target_type target1 = rpc::is_target_pair(target) ? rpc::get_target_left(target) : target;
+  rpc::target_type target2 = rpc::is_target_pair(target) ? rpc::get_target_right(target) : target;
+
+  if (args.front().is_dict_key())
+    result1 = rpc::commands.call_command(args.front().as_dict_key().c_str(), args.front().as_dict_obj(), target1);
+  else
+    result1 = rpc::parse_command_single(target1, args.front().as_string());
+
+  if (args.back().is_dict_key())
+    result2 = rpc::commands.call_command(args.back().as_dict_key().c_str(), args.back().as_dict_obj(), target2);
+  else
+    result2 = args.back().as_string();
+
+  if (result1.type() != result2.type())
+    throw torrent::input_error("Type mismatch for 'match' arguments.");
+
+  std::string text = result1.as_string();
+  std::string pattern = result2.as_string();
+
+  std::transform(text.begin(), text.end(), text.begin(), ::tolower);
+  std::transform(pattern.begin(), pattern.end(), pattern.begin(), ::tolower);
+
+  bool isAMatch = false;
+  try {
+    std::regex re(pattern);
+    isAMatch = std::regex_match(text, re);
+  } catch (const std::regex_error& exc) {
+    control->core()->push_log_std("regex_error: " + std::string(exc.what()));
+  }
+
+  return isAMatch ? (int64_t)true : (int64_t)false;
 }
 
 torrent::Object
@@ -687,8 +786,11 @@ initialize_command_ui() {
   CMD2_ANY_L   ("view.list",          std::bind(&apply_view_list));
   CMD2_ANY_LIST("view.set",           std::bind(&apply_view_set, std::placeholders::_2));
 
-  CMD2_ANY_LIST("view.filter",        std::bind(&apply_view_event, &core::ViewManager::set_filter, std::placeholders::_2));
-  CMD2_ANY_LIST("view.filter_on",     std::bind(&apply_view_filter_on, std::placeholders::_2));
+  CMD2_ANY_LIST  ("view.filter",      std::bind(&apply_view_event, &core::ViewManager::set_filter, std::placeholders::_2));
+  CMD2_ANY_LIST  ("view.filter_on",   std::bind(&apply_view_filter_on, std::placeholders::_2));
+  CMD2_ANY_LIST  ("view.filter.temp", std::bind(&apply_view_event, &core::ViewManager::set_filter_temp, std::placeholders::_2));
+  CMD2_VAR_STRING("view.filter.temp.excluded", "default,started,stopped");
+  CMD2_VAR_BOOL  ("view.filter.temp.log", 0);
 
   CMD2_ANY_LIST("view.sort",          std::bind(&apply_view_sort, std::placeholders::_2));
   CMD2_ANY_LIST("view.sort_new",      std::bind(&apply_view_event, &core::ViewManager::set_sort_new, std::placeholders::_2));
@@ -713,6 +815,10 @@ initialize_command_ui() {
   CMD2_DL        ("ui.unfocus_download",   std::bind(&cmd_ui_unfocus_download, std::placeholders::_1));
   CMD2_ANY       ("ui.current_view",       std::bind(&cmd_ui_current_view));
   CMD2_ANY_STRING("ui.current_view.set",   std::bind(&cmd_ui_set_view, std::placeholders::_2));
+
+  CMD2_ANY        ("ui.input.history.size",     std::bind(&ui::Root::get_input_history_size, control->ui()));
+  CMD2_ANY_VALUE_V("ui.input.history.size.set", std::bind(&ui::Root::set_input_history_size, control->ui(), std::placeholders::_2));
+  CMD2_ANY_V      ("ui.input.history.clear",    std::bind(&ui::Root::clear_input_history, control->ui()));
 
   CMD2_VAR_VALUE ("ui.throttle.global.step.small",  5);
   CMD2_VAR_VALUE ("ui.throttle.global.step.medium", 50);
@@ -739,6 +845,8 @@ initialize_command_ui() {
   CMD2_ANY_LIST("less",    &apply_less);
   CMD2_ANY_LIST("greater", &apply_greater);
   CMD2_ANY_LIST("equal",   &apply_equal);
+  CMD2_ANY_LIST("compare", &apply_compare);
+  CMD2_ANY_LIST("match",   &apply_match);
 
   CMD2_ANY_VALUE("convert.gm_time",      std::bind(&apply_to_time, std::placeholders::_2, 0));
   CMD2_ANY_VALUE("convert.gm_date",      std::bind(&apply_to_time, std::placeholders::_2, 0x2));

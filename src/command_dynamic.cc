@@ -163,6 +163,8 @@ system_method_insert_object(const torrent::Object::list_type& args, int flags) {
   case rpc::object_storage::flag_function_type:
     system_method_generate_command2(&value, itrArgs, args.end());
     break;
+  case rpc::object_storage::flag_list_type:
+    break;
   case rpc::object_storage::flag_multi_type:
     break;
   default:
@@ -176,7 +178,17 @@ system_method_insert_object(const torrent::Object::list_type& args, int flags) {
   if (!(flags & rpc::object_storage::flag_private))
     cmd_flags |= rpc::CommandMap::flag_public_xmlrpc;
 
-  control->object_storage()->insert_str(rawKey, value, flags);
+  if ((flags & rpc::object_storage::mask_type) == rpc::object_storage::flag_list_type) {
+    torrent::Object valueList = torrent::Object::create_list();
+    torrent::Object::list_type& valueListType = valueList.as_list();
+
+    if ((itrArgs)->is_list())
+      valueListType = (itrArgs)->as_list();
+
+    control->object_storage()->insert_str(rawKey, valueList, flags);
+  } else {
+    control->object_storage()->insert_str(rawKey, value, flags);
+  }
 
   if ((flags & rpc::object_storage::mask_type) == rpc::object_storage::flag_function_type ||
       (flags & rpc::object_storage::mask_type) == rpc::object_storage::flag_multi_type) {
@@ -230,6 +242,13 @@ system_method_insert_object(const torrent::Object::list_type& args, int flags) {
         (create_new_key<5>(rawKey, ".set"),
          std::bind(&rpc::object_storage::set_str_string, control->object_storage(), rawKey, std::placeholders::_2),
          &rpc::command_base_call_string<rpc::target_type>,
+         cmd_flags, NULL, NULL);
+      break;
+    case rpc::object_storage::flag_list_type:
+      rpc::commands.insert_slot<rpc::command_base_is_type<rpc::command_base_call_list<rpc::target_type> >::type>
+        (create_new_key<5>(rawKey, ".set"),
+         std::bind(&rpc::object_storage::set_str_list, control->object_storage(), rawKey, std::placeholders::_2),
+         &rpc::command_base_call_list<rpc::target_type>,
          cmd_flags, NULL, NULL);
       break;
     case rpc::object_storage::flag_function_type:
@@ -413,6 +432,9 @@ initialize_command_dynamic() {
 
   CMD2_ANY_LIST    ("method.insert",             std::bind(&system_method_insert, std::placeholders::_2));
   CMD2_ANY_LIST    ("method.insert.value",       std::bind(&system_method_insert_object, std::placeholders::_2, rpc::object_storage::flag_value_type));
+  CMD2_ANY_LIST    ("method.insert.bool",        std::bind(&system_method_insert_object, std::placeholders::_2, rpc::object_storage::flag_bool_type));
+  CMD2_ANY_LIST    ("method.insert.string",      std::bind(&system_method_insert_object, std::placeholders::_2, rpc::object_storage::flag_string_type));
+  CMD2_ANY_LIST    ("method.insert.list",        std::bind(&system_method_insert_object, std::placeholders::_2, rpc::object_storage::flag_list_type));
 
   CMD2_METHOD_INSERT("method.insert.simple",     rpc::object_storage::flag_function_type);
   CMD2_METHOD_INSERT("method.insert.c_simple",   rpc::object_storage::flag_constant | rpc::object_storage::flag_function_type);
