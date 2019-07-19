@@ -116,8 +116,8 @@ private:
   ThrottleMap         m_throttles;
   AddressThrottleMap  m_addressThrottles;
 
-  torrent::log_buffer_p m_log_important;
-  torrent::log_buffer_p m_log_complete;
+  torrent::log_buffer_ptr m_log_important;
+  torrent::log_buffer_ptr m_log_complete;
 };
 
 // Meh, cleanup.
