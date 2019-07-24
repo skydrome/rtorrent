@@ -1,4 +1,4 @@
-AC_INIT(rtorrent, 0.9.7, sundell.software@gmail.com)
+AC_INIT(rtorrent, 0.9.8, sundell.software@gmail.com)
 
 AC_DEFINE(API_VERSION, 11, api version)
 
@@ -31,22 +31,15 @@ TORRENT_WITHOUT_STATVFS
 TORRENT_WITHOUT_STATFS
 
 AX_PTHREAD([], AC_MSG_ERROR([requires pthread]))
+AX_WITH_CURSES
 
-PKG_CHECK_MODULES([CURSES],[ncursesw],[
-       AC_DEFINE(HAVE_NCURSESW_CURSES_H, 1)
-       ],
-       [PKG_CHECK_MODULES([CURSES],[ncurses],[
-               AC_DEFINE(HAVE_NCURSES_H, 1)
-               ],
-               [AX_WITH_CURSES()
-               if test "x$ax_cv_ncursesw" != xyes && test "x$ax_cv_ncurses" != xyes; then
-                       AC_MSG_ERROR([requires either NcursesW or Ncurses library])
-               fi])
-       ])
+if test "x$ax_cv_ncursesw" != xyes && test "x$ax_cv_ncurses" != xyes; then
+	AC_MSG_ERROR([requires either NcursesW or Ncurses library])
+fi
 
 PKG_CHECK_MODULES([LIBCURL], [libcurl],, [LIBCURL_CHECK_CONFIG])
 PKG_CHECK_MODULES([CPPUNIT], [cppunit],, [no_cppunit="yes"])
-PKG_CHECK_MODULES([DEPENDENCIES], [libtorrent >= 0.13.7])
+PKG_CHECK_MODULES([DEPENDENCIES], [libtorrent >= 0.13.8])
 
 AC_LANG_PUSH(C++)
 TORRENT_WITH_XMLRPC_C
