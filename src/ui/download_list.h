@@ -88,6 +88,7 @@ public:
     INPUT_CHANGE_DIRECTORY,
     INPUT_COMMAND,
     INPUT_FILTER,
+    INPUT_FIND,
     INPUT_EOI
   } Input;
 
@@ -98,6 +99,7 @@ public:
   void                disable();
 
   void                activate_display(Display d);
+  ElementBase*        display(Display d) { return d < DISPLAY_MAX_SIZE ? m_uiArray[d] : 0; }
 
   core::View*         current_view();
   void                set_current_view(const std::string& name);

@@ -122,6 +122,8 @@ public:
   bool     has_flag_str(const std::string& key, unsigned int flag) { return has_flag(torrent::raw_string::from_string(key), flag); }
 
   void     enable_flag(const torrent::raw_string& key, unsigned int flag);
+  const torrent::Object& set_color_string(const torrent::raw_string& key, const std::string& object);
+
   void     enable_flag_str(const std::string& key, unsigned int flag) { enable_flag(torrent::raw_string::from_string(key), flag); }
 
   // Access functions that throw on error.

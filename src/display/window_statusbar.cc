@@ -67,6 +67,8 @@ WindowStatusbar::redraw() {
     m_canvas->print(m_canvas->width() - (position - buffer), 0, "%s", buffer);
   }
 
+  void ui_pyroscope_statusbar_redraw(Window* window, display::Canvas* canvas);
+  ui_pyroscope_statusbar_redraw(this, m_canvas);
   m_lastTick = control->tick();
 }
 

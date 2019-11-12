@@ -111,6 +111,8 @@ Canvas::initialize() {
 
   if (!m_isDaemon) {
     initscr();
+    extern void ui_pyroscope_canvas_init();
+    ui_pyroscope_canvas_init();
     raw();
     noecho();
     nodelay(stdscr, TRUE);

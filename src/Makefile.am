@@ -25,10 +25,12 @@ libsub_root_a_SOURCES = \
 	command_tracker.cc \
 	command_scheduler.cc \
 	command_ui.cc \
+	command_pyroscope.cc \
 	control.cc \
 	control.h \
 	globals.cc \
 	globals.h \
+	ui_pyroscope.cc \
 	option_parser.cc \
 	option_parser.h \
 	signal_handler.cc \

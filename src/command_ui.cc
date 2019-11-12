@@ -478,8 +478,16 @@ apply_to_xb(const torrent::Object& rawArgs) {
     snprintf(buffer, 48, "%5.1f MB", (double)arg / (int64_t(1) << 20));
   else if (arg < (int64_t(1000) << 30))
     snprintf(buffer, 48, "%5.1f GB", (double)arg / (int64_t(1) << 30));
-  else
+  else if (arg < (int64_t(1000) << 40))
     snprintf(buffer, 48, "%5.1f TB", (double)arg / (int64_t(1) << 40));
+  else if (arg < (int64_t(1000) << 50))
+    snprintf(buffer, 48, "%5.1f PB", (double)arg / (int64_t(1) << 50));
+  else if (arg < (int64_t(1000) << 60))
+    snprintf(buffer, 48, "%5.1f EB", (double)arg / (int64_t(1) << 60));
+  else if (arg < (int64_t(1000) << 70))
+    snprintf(buffer, 48, "%5.1f ZB", (double)arg / (int64_t(1) << 70));
+  else
+    snprintf(buffer, 48, "%5.1f YB", (double)arg / (int64_t(1) << 80));
 
   return std::string(buffer);
 }
@@ -494,6 +502,17 @@ apply_to_throttle(const torrent::Object& rawArgs) {
 
   char buffer[32];
   snprintf(buffer, 32, "%3d", (int)(arg / (1 << 10)));
+  return std::string(buffer);
+}
+
+torrent::Object
+apply_to_group(const torrent::Object& rawArgs) {
+  int64_t arg = rawArgs.as_value();
+  if (arg < 0)
+    return "--";
+
+  char buffer[16];
+  snprintf(buffer, 16, "%2d", (int)(arg));
   return std::string(buffer);
 }
 
@@ -880,6 +899,7 @@ initialize_command_ui() {
   CMD2_ANY_VALUE("convert.mb",           std::bind(&apply_to_mb, std::placeholders::_2));
   CMD2_ANY_VALUE("convert.xb",           std::bind(&apply_to_xb, std::placeholders::_2));
   CMD2_ANY_VALUE("convert.throttle",     std::bind(&apply_to_throttle, std::placeholders::_2));
+  CMD2_ANY_VALUE("convert.group",        std::bind(&apply_to_group, std::placeholders::_2));
 
   CMD2_ANY_LIST("math.add",              std::bind(&apply_math_basic, "math.add", std::plus<int64_t>(), std::placeholders::_2));
   CMD2_ANY_LIST("math.sub",              std::bind(&apply_math_basic, "math.sub", std::minus<int64_t>(), std::placeholders::_2));

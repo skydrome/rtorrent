@@ -269,6 +269,7 @@ main(int argc, char** argv) {
        "method.insert = event.download.paused,multi|rlookup|static\n"
        
        "method.insert = event.download.finished,multi|rlookup|static\n"
+       "method.insert = event.download.partially_restarted,multi|rlookup|static\n"
        "method.insert = event.download.hash_done,multi|rlookup|static\n"
        "method.insert = event.download.hash_failed,multi|rlookup|static\n"
        "method.insert = event.download.hash_final_failed,multi|rlookup|static\n"
@@ -285,14 +286,26 @@ main(int argc, char** argv) {
        "method.set_key = event.download.erased, ~_delete_tied, d.delete_tied=\n"
 
        "method.set_key = event.download.resumed,   !_timestamp, ((d.timestamp.started.set_if_z, ((system.time)) ))\n"
-       "method.set_key = event.download.finished,  !_timestamp, ((d.timestamp.finished.set_if_z, ((system.time)) ))\n"
+       "method.set_key = event.download.finished,  !_timestamp, ((d.timestamp.finished.set, ((system.time)) ))\n"
        "method.set_key = event.download.hash_done, !_timestamp, {(branch,((d.complete)),((d.timestamp.finished.set_if_z,(system.time))))}\n"
+
+       // EVENTS: Timestamp 'tm_completed' (time of completion)
+       "method.set_key = event.download.finished,  !tm_completed,   ((d.custom.set, tm_completed, ((cat,((system.time)))) ))\n"
+       "method.set_key = event.download.hash_done, !tm_completed,   {(branch, ((and,((d.complete)),((not,((d.custom,tm_completed)))))), ((d.custom.set, tm_completed, (cat,(system.time)))) )}\n"
+
+       // EVENTS/SCHEDULE: Timestamp 'last_active' for items that have peers
+       "method.set_key = event.download.finished,  !tm_last_active, ((d.custom.set, last_active, ((cat,((system.time)))) ))\n"
+       "method.set_key = event.download.resumed,   !tm_last_active, {(branch, ((or,((d.peers_connected)),((not,((d.custom,last_active)))))), ((d.custom.set, last_active, (cat,(system.time)))) )}\n"
+       "schedule2      = pyro_update_last_active,  24, 42,          ((d.multicall2, started, \"branch=((d.peers_connected)),((d.custom.set, last_active, (cat,(system.time))))\" ))\n"
 
        "method.insert.c_simple = group.insert_persistent_view,"
        "((view.add,((argument.0)))),((view.persistent,((argument.0)))),((group.insert,((argument.0)),((argument.0))))\n"
 
        "file.prioritize_toc.first.set = {*.avi,*.mp4,*.mkv,*.gz}\n"
        "file.prioritize_toc.last.set  = {*.zip}\n"
+
+       "choke_group.insert = default_seed\n"
+       "choke_group.up.heuristics.set = default_seed,upload_seed\n"
 
        // Allow setting 'group2.view' as constant, so that we can't
        // modify the value. And look into the possibility of making
@@ -329,12 +342,13 @@ main(int argc, char** argv) {
 
        "view.add = complete\n"
        "view.filter = complete,((d.complete))\n"
-       "view.filter_on    = complete,event.download.hash_done,event.download.hash_failed,event.download.hash_final_failed,event.download.finished\n"
+       "view.filter_on    = complete,event.download.hash_done,event.download.hash_failed,event.download.hash_final_failed,"
+                                      "event.download.finished,event.download.partially_restarted\n"
 
        "view.add = incomplete\n"
        "view.filter = incomplete,((not,((d.complete))))\n"
        "view.filter_on    = incomplete,event.download.hash_done,event.download.hash_failed,"
-                                      "event.download.hash_final_failed,event.download.finished\n"
+                                      "event.download.hash_final_failed,event.download.finished,event.download.partially_restarted\n"
 
        // The hashing view does not include stopped torrents.
        "view.add = hashing\n"
@@ -344,11 +358,11 @@ main(int argc, char** argv) {
 
        "view.add    = seeding\n"
        "view.filter = seeding,((and,((d.state)),((d.complete))))\n"
-       "view.filter_on = seeding,event.download.resumed,event.download.paused,event.download.finished\n"
+       "view.filter_on = seeding,event.download.resumed,event.download.paused,event.download.finished,event.download.partially_restarted\n"
 
        "view.add    = leeching\n"
        "view.filter = leeching,((and,((d.state)),((not,((d.complete))))))\n"
-       "view.filter_on = leeching,event.download.resumed,event.download.paused,event.download.finished\n"
+       "view.filter_on = leeching,event.download.resumed,event.download.paused,event.download.finished,event.download.partially_restarted\n"
 
        "schedule2 = view.main,10,10,((view.sort,main,20))\n"
        "schedule2 = view.name,10,10,((view.sort,name,20))\n"
@@ -429,6 +443,11 @@ main(int argc, char** argv) {
     CMD2_REDIRECT_GENERIC("to_throttle", "convert.throttle");
 
     CMD2_REDIRECT        ("torrent_list_layout", "ui.torrent_list.layout.set");
+
+    CMD2_REDIRECT_GENERIC("start_tied",    "tied.start");
+    CMD2_REDIRECT_GENERIC("stop_untied",   "untied.stop");
+    CMD2_REDIRECT_GENERIC("close_untied",  "untied.close");
+    CMD2_REDIRECT_GENERIC("remove_untied", "untied.remove");
 
     // Deprecated commands. Don't use these anymore.
 

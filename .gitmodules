@@ -1,0 +1,3 @@
+[submodule "rtorrent-ps-ch"]
+	path = rtorrent-ps-ch
+	url = https://github.com/chros73/rtorrent-ps-ch/

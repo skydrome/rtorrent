@@ -133,6 +133,8 @@ print_download_title(char* first, char* last, core::Download* d) {
   return print_buffer(first, last, " %s", d->info()->name().c_str());
 }
 
+std::string human_size(int64_t bytes, unsigned int format=0);
+
 char*
 print_download_info_full(char* first, char* last, core::Download* d) {
   if (!d->download()->info()->is_open())
@@ -142,24 +144,29 @@ print_download_info_full(char* first, char* last, core::Download* d) {
   else
     first = print_buffer(first, last, "          ");
 
+  std::string h_size = human_size(d->download()->file_list()->size_bytes(), 0);
+  std::string h_done = human_size(d->download()->bytes_done(), 0);
   if (d->is_done())
-    first = print_buffer(first, last, "done %10.1f MB", (double)d->download()->file_list()->size_bytes() / (double)(1 << 20));
+    first = print_buffer(first, last, "  done   %s   ", h_size.c_str());
   else
-    first = print_buffer(first, last, "%6.1f / %6.1f MB",
-                         (double)d->download()->bytes_done() / (double)(1 << 20),
-                         (double)d->download()->file_list()->size_bytes() / (double)(1 << 20));
-  
-  first = print_buffer(first, last, " Rate: %5.1f / %5.1f KB Uploaded: %7.1f MB",
-                       (double)d->info()->up_rate()->rate() / (1 << 10),
-                       (double)d->info()->down_rate()->rate() / (1 << 10),
-                       (double)d->info()->up_rate()->total() / (1 << 20));
+    first = print_buffer(first, last, "%s / %s   ", h_done.c_str(), h_size.c_str());
+
+  std::string h_up   = human_size(d->info()->up_rate()->rate(), 0);
+  std::string h_down = human_size(d->info()->down_rate()->rate(), 0);
+  std::string h_sum  = human_size(d->info()->up_rate()->total(), 0);
+  first = print_buffer(first, last, " Rate: %s / %s  Uploaded: %s    ",
+                       h_up.c_str(), h_down.c_str(), h_sum.c_str());
 
   if (d->download()->info()->is_active() && !d->is_done()) {
     first = print_buffer(first, last, " ");
     first = print_download_percentage_done(first, last, d);
 
-    first = print_buffer(first, last, " ");
-    first = print_download_time_left(first, last, d);
+    if (!d->is_partially_done()) {
+      first = print_buffer(first, last, " ");
+      first = print_download_time_left(first, last, d);
+    } else {
+      first = print_buffer(first, last, "   done   ");
+    }
   } else {
     first = print_buffer(first, last, "                ");
   }
@@ -258,7 +265,7 @@ print_download_info_compact(char* first, char* last, core::Download* d) {
   first = print_buffer(first, last, "| %7.1f MB ", (double)d->info()->up_rate()->total() / (1 << 20));
   first = print_buffer(first, last, "| ");
 
-  if (d->download()->info()->is_active() && !d->is_done())
+  if (d->download()->info()->is_active() && !d->is_partially_done())
     first = print_download_time_left(first, last, d);
   else
     first = print_buffer(first, last, "         ");
@@ -288,7 +295,7 @@ print_download_time_left(char* first, char* last, core::Download* d) {
   if (rate < 512)
     return print_buffer(first, last, "--d --:--");
   
-  time_t remaining = (d->download()->file_list()->size_bytes() - d->download()->bytes_done()) / (rate & ~(uint32_t)(512 - 1));
+  time_t remaining = (d->download()->file_list()->selected_size_bytes() - d->download()->bytes_done()) / (rate & ~(uint32_t)(512 - 1));
 
   return print_ddhhmm(first, last, remaining);
 }

@@ -36,6 +36,7 @@
 
 #include "config.h"
 
+#include <ctime>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -83,6 +84,22 @@ void
 Manager::push_log(const char* msg) {
   m_log_important->lock_and_push_log(msg, strlen(msg), 0);
   m_log_complete->lock_and_push_log(msg, strlen(msg), 0);
+
+  extern int log_messages_fd;
+  if (log_messages_fd >= 0) {
+    char buf[30];
+    time_t t = std::time(0);
+    std::tm* now = std::localtime(&t);
+
+    snprintf(buf, sizeof(buf), "%04u-%02u-%02u %2d:%02d:%02d ",
+        1900 + now->tm_year, now->tm_mon + 1, now->tm_mday,
+        now->tm_hour, now->tm_min, now->tm_sec);
+
+    std::string line(buf);
+    line += msg;
+    line += '\n';
+    ::write(log_messages_fd, line.c_str(), line.length());
+  }
 }
 
 Manager::Manager() :

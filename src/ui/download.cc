@@ -128,7 +128,7 @@ Download::create_menu() {
                      std::bind(&Download::activate_display_focus, this, DISPLAY_TRANSFER_LIST),
                      std::bind(&Download::activate_display_menu, this, DISPLAY_TRANSFER_LIST));
 
-  element->set_entry(0, false);
+  element->set_entry(1, false); // 'Info' active by default
 
   m_bindings['p'] = std::bind(&ElementMenu::set_entry_trigger, element, 0);
   m_bindings['o'] = std::bind(&ElementMenu::set_entry_trigger, element, 1);
@@ -161,6 +161,7 @@ Download::create_info() {
   element->push_column("File stats:",       te_command("cat=$if=$d.is_multi_file=\\,multi\\,single,\" \",$d.size_files=,\" files\""));
 
   element->push_back("");
+  element->push_column("Size:",             te_command("cat=(convert.xb,(d.bytes_done)),\" / \",(convert.xb,(d.selected_size_bytes)),\" / \",(convert.xb,(d.size_bytes))"));
   element->push_column("Chunks:",           te_command("cat=(d.completed_chunks),\" / \",(d.size_chunks),\" * \",(d.chunk_size),\" (\",(d.wanted_chunks),\")\""));
   element->push_column("Priority:",         te_command("d.priority="));
   element->push_column("Peer exchange:",    te_command("cat=$if=$d.peer_exchange=\\,enabled\\,disabled,\\ ,"
@@ -170,17 +171,24 @@ Download::create_info() {
   element->push_column("State changed:",    te_command("convert.elapsed_time=$d.state_changed="));
 
   element->push_back("");
-  element->push_column("Memory usage:",     te_command("cat=$convert.mb=$pieces.memory.current=,\" MB\""));
-  element->push_column("Max memory usage:", te_command("cat=$convert.mb=$pieces.memory.max=,\" MB\""));
-  element->push_column("Free diskspace:",   te_command("cat=$convert.mb=$d.free_diskspace=,\" MB\""));
-  element->push_column("Safe diskspace:",   te_command("cat=$convert.mb=$pieces.sync.safe_free_diskspace=,\" MB\""));
+  element->push_column("Memory usage:",     te_command("convert.xb=$pieces.memory.current="));
+  element->push_column("Max memory usage:", te_command("convert.xb=$pieces.memory.max="));
+  element->push_column("Free diskspace:",   te_command("convert.xb=$d.free_diskspace="));
+  element->push_column("Safe diskspace:",   te_command("convert.xb=$pieces.sync.safe_free_diskspace="));
 
   element->push_back("");
   element->push_column("Connection type:",  te_command("cat=(d.connection_current),\" \",(if,(d.accepting_seeders),"",\"no_seeders\")"));
-  element->push_column("Choke heuristic:",  te_command("cat=(d.up.choke_heuristics),\", \",(d.down.choke_heuristics),\", \",(d.group)"));
+  element->push_column("Choke group:",      te_command("cat=(d.group.name),\"  [\",(choke_group.up.heuristics,(d.group)),\", \","
+                                                       "(choke_group.down.heuristics,(d.group)),\", \",(choke_group.tracker.mode,(d.group)),\"]   [Max \","
+                                                       "(convert.group,(choke_group.up.max,(d.group))),\"/\",(convert.group,(choke_group.down.max,(d.group))),\"]\""));
+  element->push_column("Choke group stat:", te_command("cat=\"[Size \",(choke_group.general.size,(d.group)),\"]   [Unchoked \",(choke_group.up.unchoked,(d.group)),"
+                                                       "\"/\",(choke_group.down.unchoked,(d.group)),\"]   [Queued \",(choke_group.up.queued,(d.group)),"
+                                                       "\"/\",(choke_group.down.queued,(d.group)),\"]   [Total \",(choke_group.up.total,(d.group)),"
+                                                       "\"/\",(choke_group.down.total,(d.group)),\"]   [Rate \",(convert.kb,(choke_group.up.rate,(d.group))),"
+                                                       "\"/\",(convert.kb,(choke_group.down.rate,(d.group))),\" KB]\""));
   element->push_column("Safe sync:",        te_command("if=$pieces.sync.always_safe=,yes,no"));
-  element->push_column("Send buffer:",      te_command("cat=$convert.kb=$network.send_buffer.size=,\" KB\""));
-  element->push_column("Receive buffer:",   te_command("cat=$convert.kb=$network.receive_buffer.size=,\" KB\""));
+  element->push_column("Send buffer:",      te_command("convert.xb=$network.send_buffer.size="));
+  element->push_column("Receive buffer:",   te_command("convert.xb=$network.receive_buffer.size="));
 
   // TODO: Define a custom command for this and use $argument.0 instead of looking up the name multiple times?
   element->push_column("Throttle:",         te_command("branch=d.throttle_name=,\""
@@ -215,7 +223,7 @@ Download::activate(display::Frame* frame, bool focus) {
   m_frame->frame(1)->initialize_window(m_windowDownloadStatus);
   m_windowDownloadStatus->set_active(true);
 
-  activate_display_menu(DISPLAY_PEER_LIST);
+  activate_display_menu(DISPLAY_INFO); // 'Info' active by default
 }
 
 void

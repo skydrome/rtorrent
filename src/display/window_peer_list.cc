@@ -60,6 +60,8 @@ WindowPeerList::WindowPeerList(core::Download* d, PList* l, PList::iterator* f) 
   m_focus(f) {
 }
 
+std::string human_size(int64_t bytes, unsigned int format=0);
+
 void
 WindowPeerList::redraw() {
   m_slotSchedule(this, (cachedTime + rak::timer::from_seconds(1)).round_seconds());
@@ -110,9 +112,13 @@ WindowPeerList::redraw() {
                     ip_address.c_str());
     x += 27;
 
-    m_canvas->print(x, y, "%.1f", (double)p->up_rate()->rate() / 1024); x += 7;
-    m_canvas->print(x, y, "%.1f", (double)p->down_rate()->rate() / 1024); x += 7;
-    m_canvas->print(x, y, "%.1f", (double)p->peer_rate()->rate() / 1024); x += 7;
+    std::string h_up_rate = human_size(p->up_rate()->rate(), 0);
+    std::string h_down_rate = human_size(p->down_rate()->rate(), 0);
+    std::string h_peer_rate = human_size(p->peer_rate()->rate(), 0);
+
+    m_canvas->print(x, y, "%s", h_up_rate.c_str()); x += 7;
+    m_canvas->print(x, y, "%s", h_down_rate.c_str()); x += 7;
+    m_canvas->print(x, y, "%s", h_peer_rate.c_str()); x += 7;
 
     char remoteChoked;
     char peerType;

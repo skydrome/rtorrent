@@ -280,6 +280,10 @@ DownloadList::receive_view_input(Input type) {
     }
     break;
 
+  case INPUT_FIND:
+    title = "find";
+    break;
+
   default:
     throw torrent::internal_error("DownloadList::receive_view_input(...) Invalid input type.");
   }
@@ -375,6 +379,11 @@ DownloadList::receive_exit_input(Input type) {
       }
       break;
 
+    case INPUT_FIND:
+      rpc::call_command("ui.find.term.set", rak::trim(input->str()), rpc::make_target());
+      rpc::call_command("ui.find.next", torrent::Object(), rpc::make_target());
+      break;
+
     default:
       throw torrent::internal_error("DownloadList::receive_exit_input(...) Invalid input type.");
     }
@@ -397,13 +406,13 @@ DownloadList::setup_keys() {
   m_bindings['\x0F']        = std::bind(&DownloadList::receive_view_input, this, INPUT_CHANGE_DIRECTORY);
   m_bindings['X' - '@']     = std::bind(&DownloadList::receive_view_input, this, INPUT_COMMAND);
   m_bindings['F']           = std::bind(&DownloadList::receive_view_input, this, INPUT_FILTER);
+  m_bindings['F' - '@']     = std::bind(&DownloadList::receive_view_input, this, INPUT_FIND);
 
   m_uiArray[DISPLAY_LOG]->bindings()[KEY_LEFT] =
     m_uiArray[DISPLAY_LOG]->bindings()['B' - '@'] =
     m_uiArray[DISPLAY_LOG]->bindings()[' '] = std::bind(&DownloadList::activate_display, this, DISPLAY_DOWNLOAD_LIST);
 
-  m_uiArray[DISPLAY_DOWNLOAD_LIST]->bindings()[KEY_RIGHT] =
-    m_uiArray[DISPLAY_DOWNLOAD_LIST]->bindings()['F' - '@'] = std::bind(&DownloadList::activate_display, this, DISPLAY_DOWNLOAD);
+  m_uiArray[DISPLAY_DOWNLOAD_LIST]->bindings()[KEY_RIGHT] = std::bind(&DownloadList::activate_display, this, DISPLAY_DOWNLOAD);
   m_uiArray[DISPLAY_DOWNLOAD_LIST]->bindings()['l'] = std::bind(&DownloadList::activate_display, this, DISPLAY_LOG);
 }
 
